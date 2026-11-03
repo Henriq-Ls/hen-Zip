@@ -19,18 +19,20 @@ from _CONFIGURA_ import (
     ALTURA_MARCA,
     ATALHO_NOVO,
     ATALHO_SAIR,
+    CHAVE_CONFIG_OPERACOES,
     ESPACO_INTERNO,
     ESPACO_LAYOUT,
     IMAGEM_ICO,
+    INTERVALO_SALVAR_OPERACOES_MS,
     MARGEM_CARD,
     MARGEM_LAYOUT,
     ESTILO_ESCURO_GLOBAL,
     TXT_BOTAO_NOVA_OPERACAO,
-    TXT_COLUNA_ACAO,
-    TXT_COLUNA_DESTINO,
-    TXT_COLUNA_ORIGEM,
+    TXT_BOTAO_ABRIR_LOGS,
+    TXT_AVISO_ZIP_NAO_APAGADO,
     TXT_CONFIRMAR_SAIR_PROCESSANDO,
     TXT_CONFIRMAR_SUBSTITUIR_ZIP,
+    TXT_ERRO_ABRIR_LOGS,
     TXT_ERRO_ARQUIVO_DESTINO_VAZIO,
     TXT_ERRO_CAMINHO_VAZIO,
     TXT_ERRO_ACAO_ZIP_INVALIDA,
@@ -38,6 +40,9 @@ from _CONFIGURA_ import (
     TXT_ERRO_DESTINO_ZIP_INVALIDO,
     TXT_ERRO_ORIGEM_PASTA_INVALIDA,
     TXT_ERRO_ORIGEM_ZIP_INVALIDA,
+    TXT_LOG_FALHA_APAGAR_ZIP,
+    TXT_LOG_ZIP_APAGADO,
+    TXT_MENSAGEM_ZIP_APAGADO,
     TXT_HERO_MARCA,
     TXT_HERO_SUBTITULO,
     TXT_HERO_TITULO,
@@ -63,12 +68,11 @@ from _LOGS_ import log
 from _APPDATA_ import appdata
 from _THREADS_ import thread_manager
 
-from PySide6.QtCore import Qt, QByteArray
-from PySide6.QtGui import QAction
+from PySide6.QtCore import Qt, QByteArray, QTimer, QUrl
+from PySide6.QtGui import QAction, QDesktopServices
 from PySide6.QtWidgets import (
     QDialog,
     QFrame,
-    QGridLayout,
     QHBoxLayout,
     QLabel,
     QMainWindow,
@@ -102,10 +106,16 @@ class MainWindow(QMainWindow):
         self._linhas: list[LinhaOperacao] = []
         self._threads: dict[str, ThreadOperacaoZip] = {}
         self._processando = False
+        self._restaurando_operacoes = True
+        self._timer_salvar_operacoes = QTimer(self)
+        self._timer_salvar_operacoes.setSingleShot(True)
+        self._timer_salvar_operacoes.setInterval(INTERVALO_SALVAR_OPERACOES_MS)
+        self._timer_salvar_operacoes.timeout.connect(self._salvar_operacoes)
 
         self._configurar_janela()
         self._aplicar_estilo()
         self._montar_ui()
+        self._restaurar_operacoes()
         self._montar_menu()
         self._restaurar_sessao()
         self._conectar_shutdown()
@@ -161,6 +171,11 @@ class MainWindow(QMainWindow):
         textos_hero.addWidget(titulo)
         textos_hero.addWidget(subtitulo)
         hero_layout.addLayout(textos_hero, 1)
+
+        self._botao_logs = QPushButton(TXT_BOTAO_ABRIR_LOGS)
+        self._botao_logs.setObjectName("secondaryButton")
+        self._botao_logs.clicked.connect(self._abrir_logs)
+        hero_layout.addWidget(self._botao_logs)
         layout.addWidget(hero)
 
         painel = QFrame()
@@ -187,22 +202,6 @@ class MainWindow(QMainWindow):
         cabecalho_painel.addWidget(self._botao_nova)
         painel_layout.addLayout(cabecalho_painel)
 
-        cabecalho_colunas = QFrame()
-        cabecalho_colunas.setObjectName("tableHeader")
-        grade_cabecalho = QGridLayout(cabecalho_colunas)
-        grade_cabecalho.setContentsMargins(MARGEM_CARD, 0, MARGEM_CARD, 0)
-        grade_cabecalho.setHorizontalSpacing(ESPACO_LAYOUT)
-        grade_cabecalho.setColumnStretch(0, 5)
-        grade_cabecalho.setColumnStretch(1, 5)
-        grade_cabecalho.setColumnStretch(2, 2)
-        for coluna, texto in enumerate(
-            (TXT_COLUNA_ORIGEM, TXT_COLUNA_DESTINO, TXT_COLUNA_ACAO)
-        ):
-            rotulo = QLabel(texto)
-            rotulo.setObjectName("columnHeader")
-            grade_cabecalho.addWidget(rotulo, 0, coluna)
-        painel_layout.addWidget(cabecalho_colunas)
-
         self._area_linhas = QWidget()
         self._layout_linhas = QVBoxLayout(self._area_linhas)
         self._layout_linhas.setContentsMargins(0, 0, 0, 0)
@@ -223,7 +222,6 @@ class MainWindow(QMainWindow):
         painel_layout.addWidget(self._progresso)
         layout.addWidget(painel, 1)
 
-        self._adicionar_linha()
         self.statusBar().showMessage(TXT_STATUS_PRONTO)
 
         log.ok("MainWindow", "_montar_ui", "UI montada")
@@ -258,10 +256,28 @@ class MainWindow(QMainWindow):
             self,
         )
 
+    def _abrir_logs(self):
+        caminho = log.caminho_geral
+        if not os.path.isfile(caminho) or not QDesktopServices.openUrl(
+            QUrl.fromLocalFile(caminho)
+        ):
+            popup_erro(
+                TXT_TITULO_ERRO,
+                TXT_ERRO_ABRIR_LOGS.format(caminho=caminho),
+                self,
+            )
+
     def _adicionar_linha(self):
+        self._inserir_linha()
+        self._agendar_salvamento_operacoes()
+
+    def _inserir_linha(self, dados: dict | None = None):
         linha = LinhaOperacao(self._area_linhas)
+        if dados is not None:
+            linha.restaurar_dados(dados)
         linha.solicitar_operacao.connect(self._executar_operacao)
         linha.solicitar_remocao.connect(self._remover_linha)
+        linha.operacao_alterada.connect(self._agendar_salvamento_operacoes)
         self._linhas.append(linha)
         indice = max(self._layout_linhas.count() - 1, 0)
         self._layout_linhas.insertWidget(indice, linha)
@@ -281,10 +297,71 @@ class MainWindow(QMainWindow):
             linha.solicitar_remocao.disconnect(self._remover_linha)
         except (RuntimeError, TypeError):
             pass
+        try:
+            linha.operacao_alterada.disconnect(self._agendar_salvamento_operacoes)
+        except (RuntimeError, TypeError):
+            pass
         linha.setParent(None)
         linha.deleteLater()
+        self._agendar_salvamento_operacoes()
 
-    def _executar_operacao(self, acao: str, origem: str, destino: str):
+    def _restaurar_operacoes(self):
+        """Carrega as linhas salvas no arquivo de configuração do usuário."""
+        try:
+            configuracao = appdata.ler_config()
+            salvas = configuracao.get(CHAVE_CONFIG_OPERACOES)
+            if isinstance(salvas, list):
+                for dados in salvas:
+                    if isinstance(dados, dict):
+                        self._inserir_linha(dados)
+                if not salvas:
+                    log.info(
+                        "MainWindow",
+                        "_restaurar_operacoes",
+                        "nenhuma linha salva; mantendo a lista vazia",
+                    )
+            else:
+                self._inserir_linha()
+            log.ok(
+                "MainWindow",
+                "_restaurar_operacoes",
+                f"{len(self._linhas)} linha(s) restaurada(s)",
+            )
+        except Exception as erro:
+            log.erro("MainWindow", "_restaurar_operacoes", str(erro))
+            if not self._linhas:
+                self._inserir_linha()
+        finally:
+            self._restaurando_operacoes = False
+
+    def _agendar_salvamento_operacoes(self):
+        if not self._restaurando_operacoes:
+            self._timer_salvar_operacoes.start()
+
+    def _salvar_operacoes(self):
+        """Persiste modo e caminhos das linhas no config.json do AppData."""
+        try:
+            configuracao = appdata.ler_config()
+            configuracao[CHAVE_CONFIG_OPERACOES] = [
+                linha.exportar_dados() for linha in self._linhas
+            ]
+            appdata.salvar_config(configuracao)
+            log.ok(
+                "MainWindow",
+                "_salvar_operacoes",
+                f"{len(self._linhas)} linha(s) salvas",
+            )
+        except Exception as erro:
+            log.erro("MainWindow", "_salvar_operacoes", str(erro))
+
+    def _executar_operacao(
+        self,
+        acao: str,
+        origem: str,
+        destino: str,
+        apagar_zip_apos_extrair: bool = False,
+        extrair_junto_zip: bool = False,
+    ):
         if self._processando:
             return
         origem = os.path.expandvars(os.path.expanduser(origem))
@@ -294,6 +371,8 @@ class MainWindow(QMainWindow):
             return
 
         substituir: set[str] = set()
+        substituir_junto_zip: set[str] = set()
+        extrair_na_pasta_do_zip = False
         try:
             if acao == "compactar":
                 if not os.path.isdir(origem):
@@ -317,13 +396,35 @@ class MainWindow(QMainWindow):
                     raise ValueError(TXT_ERRO_ORIGEM_ZIP_INVALIDA)
                 if os.path.exists(destino) and not os.path.isdir(destino):
                     raise ValueError(TXT_ERRO_DESTINO_PASTA_INVALIDO)
-                conflitos = listar_conflitos(origem, destino)
-                if conflitos:
-                    dialogo = DialogoConflitos(conflitos, self)
+                destinos_extracao = [destino]
+                if extrair_junto_zip:
+                    pasta_zip = os.path.dirname(os.path.abspath(origem))
+                    identidade_destino = os.path.normcase(
+                        os.path.realpath(os.path.abspath(destino))
+                    )
+                    identidade_pasta_zip = os.path.normcase(
+                        os.path.realpath(pasta_zip)
+                    )
+                    if identidade_destino != identidade_pasta_zip:
+                        destinos_extracao.append(pasta_zip)
+                        extrair_na_pasta_do_zip = True
+
+                for indice, destino_extracao in enumerate(destinos_extracao):
+                    conflitos = listar_conflitos(origem, destino_extracao)
+                    if not conflitos:
+                        continue
+                    dialogo = DialogoConflitos(
+                        conflitos,
+                        self,
+                        destino_extracao,
+                    )
                     if dialogo.exec() != QDialog.DialogCode.Accepted:
                         self.statusBar().showMessage(TXT_STATUS_CANCELADO)
                         return
-                    substituir = dialogo.arquivos_selecionados()
+                    if indice == 0:
+                        substituir = dialogo.arquivos_selecionados()
+                    else:
+                        substituir_junto_zip = dialogo.arquivos_selecionados()
             else:
                 raise ValueError(TXT_ERRO_ACAO_ZIP_INVALIDA)
         except Exception as erro:
@@ -338,6 +439,13 @@ class MainWindow(QMainWindow):
             origem=origem,
             destino=destino,
             substituir=substituir,
+            apagar_zip_apos_extrair=(
+                acao == "extrair" and apagar_zip_apos_extrair
+            ),
+            extrair_junto_zip=(
+                acao == "extrair" and extrair_na_pasta_do_zip
+            ),
+            substituir_junto_zip=substituir_junto_zip,
             parent=self,
         )
         worker.progresso.connect(self._ao_progresso)
@@ -362,9 +470,36 @@ class MainWindow(QMainWindow):
         self._progresso.setValue(percentual)
         self.statusBar().showMessage(mensagem)
 
-    def _ao_operacao_concluida(self, nome: str, mensagem: str):
+    def _ao_operacao_concluida(
+        self,
+        nome: str,
+        mensagem: str,
+        origem: str = "",
+        apagar_zip_apos_extrair: bool = False,
+    ):
         self._definir_processando(False)
         self.statusBar().showMessage(TXT_STATUS_SUCESSO)
+        if apagar_zip_apos_extrair:
+            try:
+                os.remove(origem)
+                mensagem += TXT_MENSAGEM_ZIP_APAGADO.format(arquivo=origem)
+                log.ok(
+                    "MainWindow",
+                    "_ao_operacao_concluida",
+                    TXT_LOG_ZIP_APAGADO.format(arquivo=origem),
+                )
+            except OSError as erro:
+                mensagem += TXT_AVISO_ZIP_NAO_APAGADO.format(
+                    arquivo=origem,
+                    erro=erro,
+                )
+                log.aviso(
+                    "MainWindow",
+                    "_ao_operacao_concluida",
+                    TXT_LOG_FALHA_APAGAR_ZIP.format(arquivo=origem, erro=erro),
+                )
+                popup_aviso(TXT_TITULO_SUCESSO, mensagem, self)
+                return
         popup_info(TXT_TITULO_SUCESSO, mensagem, self)
 
     def _ao_operacao_falhou(self, nome: str, mensagem: str):
@@ -418,6 +553,9 @@ class MainWindow(QMainWindow):
 
     def _ao_encerrar(self):
         log.info("MainWindow", "_ao_encerrar", "encerrando aplicação...")
+        if self._timer_salvar_operacoes.isActive():
+            self._timer_salvar_operacoes.stop()
+            self._salvar_operacoes()
         thread_manager.encerrar_todas()
         log.info("MainWindow", "_ao_encerrar", "shutdown concluído")
 
@@ -427,5 +565,7 @@ class MainWindow(QMainWindow):
             popup_aviso(TXT_TITULO_AGUARDAR, TXT_CONFIRMAR_SAIR_PROCESSANDO, self)
             event.ignore()
             return
+        self._timer_salvar_operacoes.stop()
+        self._salvar_operacoes()
         self._salvar_sessao()
         super().closeEvent(event)

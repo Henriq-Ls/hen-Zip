@@ -48,6 +48,34 @@ class OperacoesZipTest(unittest.TestCase):
         with open(os.path.join(destino, "existente.txt"), encoding="utf-8") as arq:
             self.assertEqual(arq.read(), "versão do ZIP")
 
+    def test_remove_pasta_raiz_que_tem_o_mesmo_nome_do_destino(self):
+        arquivo_zip = os.path.join(self.raiz, "hen-Navi.zip")
+        destino = os.path.join(self.raiz, "hen-Navi")
+        with zipfile.ZipFile(arquivo_zip, "w") as arquivo:
+            arquivo.writestr("hen-Navi/", "")
+            arquivo.writestr("hen-Navi/main.py", "conteúdo")
+            arquivo.writestr("hen-Navi/nucleo/info.txt", "documentação")
+
+        extrair_zip(arquivo_zip, destino)
+
+        self.assertTrue(os.path.isfile(os.path.join(destino, "main.py")))
+        self.assertTrue(
+            os.path.isfile(os.path.join(destino, "nucleo", "info.txt"))
+        )
+        self.assertFalse(os.path.exists(os.path.join(destino, "hen-Navi")))
+
+    def test_preserva_pasta_raiz_se_o_destino_tem_outro_nome(self):
+        arquivo_zip = os.path.join(self.raiz, "hen-Navi.zip")
+        destino = os.path.join(self.raiz, "projeto-extraido")
+        with zipfile.ZipFile(arquivo_zip, "w") as arquivo:
+            arquivo.writestr("hen-Navi/main.py", "conteúdo")
+
+        extrair_zip(arquivo_zip, destino)
+
+        self.assertTrue(
+            os.path.isfile(os.path.join(destino, "hen-Navi", "main.py"))
+        )
+
     def test_rejeita_caminho_de_travessia(self):
         arquivo_zip = os.path.join(self.raiz, "inseguro.zip")
         destino = os.path.join(self.raiz, "destino")

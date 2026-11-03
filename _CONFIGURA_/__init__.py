@@ -73,14 +73,23 @@ ESPACO_LAYOUT = 16
 ESPACO_INTERNO = 10
 ALTURA_CAMPO = 42
 ALTURA_BOTAO = 42
-ALTURA_LINHA_OPERACAO = 184
-LARGURA_BOTAO_EXECUTAR = 132
-LARGURA_BOTAO_REMOVER = 42
+ALTURA_LINHA_OPERACAO = 82
+LARGURA_CAMPO_CAMINHO_MIN = 120
+LARGURA_BOTAO_PROCURAR = 78
+LARGURA_BOTAO_EXECUTAR = 104
+LARGURA_BOTAO_REMOVER = 40
 MARGEM_CARD = 18
 ALTURA_MARCA = 48
 LIMITE_DIALOGO_CONFLITOS = 560
 ALTURA_DIALOGO_CONFLITOS = 460
 NIVEL_COMPRESSAO_ZIP = 6
+INTERVALO_SALVAR_OPERACOES_MS = 400
+CHAVE_CONFIG_OPERACOES = "operacoes"
+CHAVE_OPERACAO_MODO = "modo"
+CHAVE_OPERACAO_ORIGEM = "origem"
+CHAVE_OPERACAO_DESTINO = "destino"
+CHAVE_OPERACAO_APAGAR_ZIP = "apagar_zip_apos_extrair"
+CHAVE_OPERACAO_EXTRAIR_JUNTO_ZIP = "extrair_junto_ao_zip"
 
 # ══════════════════════════════════════════════════════════════════════════════
 # ATALHOS
@@ -102,24 +111,34 @@ TXT_HERO_TITULO = "Compacte e extraia sem etapas repetitivas"
 TXT_HERO_SUBTITULO = "Organize seus arquivos ZIP em poucos cliques."
 TXT_HERO_MARCA = "ZIP"
 TXT_BOTAO_NOVA_OPERACAO = "+ Nova operação"
+TXT_BOTAO_ABRIR_LOGS = "Abrir logs"
 TXT_SECAO_OPERACOES = "Operações"
 TXT_SECAO_DESCRICAO = "Configure a origem, o destino e escolha o que fazer."
 TXT_COLUNA_ORIGEM = "ORIGEM"
 TXT_COLUNA_DESTINO = "DESTINO"
 TXT_COLUNA_ACAO = "AÇÃO"
-TXT_MODO_COMPACTAR = "Compactar pasta em ZIP"
-TXT_MODO_EXTRAIR = "Extrair ZIP para pasta"
+TXT_MODO_COMPACTAR = "Compactar"
+TXT_MODO_EXTRAIR = "Extrair"
 TXT_ROTULO_ORIGEM = "Pasta para compactar"
 TXT_ROTULO_ZIP_ORIGEM = "Arquivo ZIP"
 TXT_ROTULO_DESTINO_ZIP = "Salvar arquivo ZIP como"
 TXT_ROTULO_DESTINO_PASTA = "Extrair para esta pasta"
-TXT_PLACEHOLDER_ORIGEM_PASTA = "Selecione ou informe uma pasta"
-TXT_PLACEHOLDER_ORIGEM_ZIP = "Selecione ou informe um arquivo .zip"
-TXT_PLACEHOLDER_DESTINO_ZIP = "Escolha onde salvar o arquivo .zip"
-TXT_PLACEHOLDER_DESTINO_PASTA = "Selecione ou informe a pasta de destino"
+TXT_PLACEHOLDER_ORIGEM_PASTA = "Pasta de origem"
+TXT_PLACEHOLDER_ORIGEM_ZIP = "Arquivo ZIP de origem"
+TXT_PLACEHOLDER_DESTINO_ZIP = "Salvar arquivo ZIP em..."
+TXT_PLACEHOLDER_DESTINO_PASTA = "Pasta de destino"
 TXT_BOTAO_PROCURAR = "Procurar"
-TXT_BOTAO_COMPACTAR = "Criar ZIP"
-TXT_BOTAO_EXTRAIR = "Extrair arquivos"
+TXT_BOTAO_COMPACTAR = "Zipar"
+TXT_BOTAO_EXTRAIR = "Extrair"
+TXT_CHECKBOX_APAGAR_ZIP = "Apagar ZIP após extrair"
+TXT_TOOLTIP_APAGAR_ZIP = (
+    "Apaga o ZIP de origem somente após uma extração concluída. "
+    "O caminho continua salvo."
+)
+TXT_CHECKBOX_EXTRAIR_JUNTO_ZIP = "Também ao lado do ZIP"
+TXT_TOOLTIP_EXTRAIR_JUNTO_ZIP = (
+    "Além da pasta de destino, extrai os arquivos na pasta onde o ZIP está."
+)
 TXT_BOTAO_REMOVER = "Remover esta operação"
 TXT_ICON_REMOVER = "×"
 TXT_SELECIONAR_PASTA_ORIGEM = "Selecione a pasta para compactar"
@@ -136,6 +155,18 @@ TXT_PROGRESS_COMPACTAR = "Compactando: {nome}"
 TXT_PROGRESS_EXTRAIR = "Extraindo: {nome}"
 TXT_SUCESSO_COMPACTAR = "Arquivo ZIP criado com sucesso:\n{destino}"
 TXT_SUCESSO_EXTRAIR = "Arquivos extraídos com sucesso em:\n{destino}"
+TXT_SUCESSO_EXTRAIR_JUNTO_ZIP = (
+    "\n\nTambém extraídos ao lado do ZIP:\n{destino}"
+)
+TXT_MENSAGEM_ZIP_APAGADO = "\n\nZIP de origem apagado:\n{arquivo}"
+TXT_AVISO_ZIP_NAO_APAGADO = (
+    "\n\nA extração foi concluída, mas não foi possível apagar o ZIP:\n"
+    "{arquivo}\n\nDetalhes: {erro}"
+)
+TXT_LOG_ZIP_APAGADO = "ZIP de origem apagado após extração: {arquivo}"
+TXT_LOG_FALHA_APAGAR_ZIP = (
+    "A extração terminou, mas não foi possível apagar o ZIP {arquivo}: {erro}"
+)
 TXT_TITULO_SUCESSO = "Operação concluída"
 TXT_TITULO_ERRO = "Não foi possível concluir"
 TXT_TITULO_CONFLITOS = "Arquivos já existentes"
@@ -181,6 +212,12 @@ TXT_ERRO_PASTA_ORIGEM_VAZIA = "Escolha uma pasta de origem."
 TXT_ERRO_PASTA_DESTINO_VAZIA = "Escolha uma pasta de destino."
 TXT_ERRO_ARQUIVO_DESTINO_VAZIO = "Escolha o caminho do arquivo ZIP."
 TXT_ERRO_ACAO_ZIP_INVALIDA = "Ação de compactação ou extração desconhecida."
+TXT_ERRO_ABRIR_LOGS = "Não foi possível abrir o arquivo de log:\n{caminho}"
+TXT_LOG_PASTA_RAIZ_REMOVIDA = "Pasta raiz correspondente ao destino removida: {nome}"
+TXT_LOG_RESULTADO_EXTRAIR = (
+    "Extração concluída: {destino} | {extraidos} arquivo(s) extraído(s), "
+    "{mantidos} arquivo(s) mantido(s)."
+)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # CORES — paleta base (nomes semânticos)
@@ -342,6 +379,24 @@ QLineEdit, QComboBox {{
 }}
 QLineEdit:focus, QComboBox:focus {{ border: 1px solid {COR_ACENTO_BORDA}; }}
 QComboBox::drop-down {{ border: none; width: 26px; }}
+QCheckBox#deleteArchiveCheck {{
+    color: {COR_TEXTO};
+    spacing: 7px;
+}}
+QCheckBox#deleteArchiveCheck::indicator {{
+    width: 18px;
+    height: 18px;
+    border: 1px solid {COR_BORDA_CLARA};
+    border-radius: 4px;
+    background: {COR_BG_CAMPO};
+}}
+QCheckBox#deleteArchiveCheck::indicator:hover {{
+    border-color: {COR_ACENTO_BORDA};
+}}
+QCheckBox#deleteArchiveCheck::indicator:checked {{
+    background: {COR_ACENTO};
+    border-color: {COR_ACENTO};
+}}
 QComboBox QAbstractItemView {{
     background: {COR_BG_TERCIARIO};
     color: {COR_TEXTO};
@@ -369,6 +424,20 @@ QPushButton#primaryButton {{
     font-weight: bold;
 }}
 QPushButton#primaryButton:hover {{ background: {COR_ACENTO_HOVER}; }}
+QToolButton#primaryButton {{
+    background: {COR_ACENTO};
+    color: #FFFFFF;
+    border: none;
+    border-radius: 8px;
+    padding: 7px 12px;
+    min-height: {ALTURA_BOTAO}px;
+    font-weight: bold;
+}}
+QToolButton#primaryButton:hover {{ background: {COR_ACENTO_HOVER}; }}
+QToolButton#primaryButton::menu-button {{
+    border-left: 1px solid {COR_ACENTO_BORDA};
+    width: 20px;
+}}
 QPushButton#secondaryButton {{
     background: {COR_BG_TERCIARIO};
     border: 1px solid {COR_ACENTO_BORDA};

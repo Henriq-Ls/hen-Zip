@@ -11,6 +11,8 @@ from _CONFIGURA_ import (
     TXT_ERRO_DESTINO_ZIP_INVALIDO,
     TXT_ERRO_ORIGEM_PASTA_INVALIDA,
     TXT_ERRO_ORIGEM_ZIP_INVALIDA,
+    TXT_LOG_PASTA_RAIZ_REMOVIDA,
+    TXT_LOG_RESULTADO_EXTRAIR,
     TXT_PROGRESS_COMPACTAR,
     TXT_PROGRESS_EXTRAIR,
 )
@@ -153,6 +155,33 @@ def _caminho_destino_seguro(raiz_absoluta: str, raiz_real: str, relativo: str) -
     return destino
 
 
+def _prefixo_raiz_do_destino(membros, destino: str) -> str | None:
+    """Detecta uma única pasta externa que repete o nome do destino."""
+    if not membros:
+        return None
+
+    raizes = {
+        PurePosixPath(relativo).parts[0]
+        for _, relativo in membros
+        if PurePosixPath(relativo).parts
+    }
+    if len(raizes) != 1:
+        return None
+
+    raiz = next(iter(raizes))
+    nome_destino = os.path.basename(os.path.normpath(destino))
+    if not nome_destino or raiz.casefold() != nome_destino.casefold():
+        return None
+
+    for info, relativo in membros:
+        partes = PurePosixPath(relativo).parts
+        if len(partes) == 1 and not info.is_dir():
+            return None
+        if relativo != raiz and not relativo.startswith(f"{raiz}/"):
+            return None
+    return raiz
+
+
 def _ler_membros(arquivo_zip: str, destino: str):
     if not os.path.isfile(arquivo_zip):
         raise ValueError(TXT_ERRO_ORIGEM_ZIP_INVALIDA)
@@ -163,11 +192,20 @@ def _ler_membros(arquivo_zip: str, destino: str):
     raiz_real = os.path.realpath(destino)
     try:
         with zipfile.ZipFile(arquivo_zip, "r") as zip_aberto:
-            membros = []
+            membros_brutos = []
             for info in zip_aberto.infolist():
                 relativo = _nome_membro_seguro(info.filename)
-                if relativo is None:
+                if relativo is not None:
+                    membros_brutos.append((info, relativo))
+
+            prefixo = _prefixo_raiz_do_destino(membros_brutos, destino)
+            membros = []
+            for info, relativo in membros_brutos:
+                if prefixo and relativo == prefixo and info.is_dir():
                     continue
+                if prefixo and relativo.startswith(f"{prefixo}/"):
+                    relativo = relativo[len(prefixo) + 1:]
+
                 caminho = _caminho_destino_seguro(
                     raiz_absoluta, raiz_real, relativo
                 )
@@ -201,14 +239,14 @@ def _ler_membros(arquivo_zip: str, destino: str):
                     raise ValueError(TXT_ERRO_DESTINO_E_PASTA.format(nome=relativo))
 
                 membros.append((info, relativo, caminho))
-            return membros
+            return membros, prefixo
     except zipfile.BadZipFile as erro:
         raise ValueError(TXT_ERRO_ARQUIVO_ZIP_INVALIDO) from erro
 
 
 def listar_conflitos(arquivo_zip: str, destino: str) -> list[str]:
     """Valida o ZIP e retorna os arquivos que já existem no destino."""
-    membros = _ler_membros(arquivo_zip, destino)
+    membros, _ = _ler_membros(arquivo_zip, destino)
     conflitos = {
         relativo
         for info, relativo, caminho in membros
@@ -231,9 +269,18 @@ def extrair_zip(
 
     raiz_absoluta = os.path.abspath(destino)
     raiz_real = os.path.realpath(destino)
-    membros = _ler_membros(arquivo_zip, destino)
+    membros, prefixo = _ler_membros(arquivo_zip, destino)
     total = max(sum(not info.is_dir() for info, _, _ in membros), 1)
     processados = 0
+    arquivos_extraidos = 0
+    arquivos_mantidos = 0
+
+    if prefixo:
+        log.info(
+            "OperacoesZIP",
+            "extrair_zip",
+            TXT_LOG_PASTA_RAIZ_REMOVIDA.format(nome=prefixo),
+        )
 
     with zipfile.ZipFile(arquivo_zip, "r") as zip_aberto:
         for info, relativo, caminho in membros:
@@ -285,6 +332,9 @@ def extrair_zip(
                     if os.path.exists(temporario):
                         os.remove(temporario)
                     raise
+                arquivos_extraidos += 1
+            else:
+                arquivos_mantidos += 1
 
             processados += 1
             _notificar(
@@ -295,5 +345,13 @@ def extrair_zip(
 
     if processados == 0:
         _notificar(progresso, 100, TXT_PROGRESS_EXTRAIR.format(nome=""))
-    log.ok("OperacoesZIP", "extrair_zip", f"Extração concluída: {destino}")
+    log.ok(
+        "OperacoesZIP",
+        "extrair_zip",
+        TXT_LOG_RESULTADO_EXTRAIR.format(
+            destino=destino,
+            extraidos=arquivos_extraidos,
+            mantidos=arquivos_mantidos,
+        ),
+    )
     return destino

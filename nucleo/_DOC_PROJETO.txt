@@ -49,6 +49,14 @@ DECISÕES DE ARQUITETURA
   adicionar uma pasta externa com o nome da origem.
   A extração mantém arquivos não selecionados no destino e permite substituir
   individualmente os arquivos marcados pelo usuário.
+  Se o ZIP tiver uma única pasta raiz com o mesmo nome do destino, esse nível é
+  removido para evitar uma pasta duplicada.
+  A opção "Apagar ZIP após extrair" é salva por linha e só remove a origem após
+  a conclusão bem-sucedida; o caminho permanece salvo.
+  O botão Abrir logs abre LOG_GERAL.log; o resumo registra arquivos extraídos e
+  arquivos mantidos sem substituição.
+  As linhas e os caminhos escolhidos são persistidos em config.json via AppData
+  e restaurados ao iniciar o aplicativo.
   Operações de arquivo rodam em ThreadSegura para manter a interface responsiva.
   A extração valida caminhos do ZIP e grava arquivos temporários antes de trocar
   arquivos existentes, reduzindo o risco de deixar arquivos parcialmente gravados.

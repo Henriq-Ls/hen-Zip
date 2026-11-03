@@ -27,19 +27,27 @@ from PySide6.QtWidgets import (
 
 
 class DialogoConflitos(QDialog):
-    def __init__(self, conflitos: list[str], parent=None):
+    def __init__(
+        self,
+        conflitos: list[str],
+        parent=None,
+        destino: str | None = None,
+    ):
         super().__init__(parent)
         self.setWindowTitle(TXT_TITULO_CONFLITOS)
         self.resize(LIMITE_DIALOGO_CONFLITOS, ALTURA_DIALOGO_CONFLITOS)
-        self._montar_ui(conflitos)
+        self._montar_ui(conflitos, destino)
         self._conectar_sinais()
 
-    def _montar_ui(self, conflitos: list[str]):
+    def _montar_ui(self, conflitos: list[str], destino: str | None = None):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(MARGEM_CARD, MARGEM_CARD, MARGEM_CARD, MARGEM_CARD)
         layout.setSpacing(ESPACO_INTERNO)
 
-        explicacao = QLabel(TXT_MENSAGEM_CONFLITOS)
+        texto_explicacao = TXT_MENSAGEM_CONFLITOS
+        if destino:
+            texto_explicacao += f"\n\nPasta: {destino}"
+        explicacao = QLabel(texto_explicacao)
         explicacao.setWordWrap(True)
         explicacao.setObjectName("mutedLabel")
         layout.addWidget(explicacao)
