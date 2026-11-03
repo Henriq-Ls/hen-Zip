@@ -1,0 +1,65 @@
+════════════════════════════════════════════════════════════════════════════════
+  DOCUMENTAÇÃO DO PROJETO
+════════════════════════════════════════════════════════════════════════════════
+
+hen-Zip é uma aplicação desktop feita com PySide6 para compactar pastas em
+arquivos ZIP e extrair arquivos ZIP diretamente para uma pasta escolhida.
+Cada linha da interface representa uma operação, com origem, destino e ação.
+Na extração, o usuário pode escolher individualmente quais arquivos existentes
+serão substituídos. Caminhos inseguros dentro de arquivos ZIP são rejeitados.
+
+────────────────────────────────────────────────────────────────────────────────
+MÓDULOS E RESPONSABILIDADES
+────────────────────────────────────────────────────────────────────────────────
+
+_CONFIGURA_/
+  Fonte única de verdade para hardcodes. Cores, atalhos, dimensões, strings
+  de UI. Nenhum outro arquivo pode ter valores fixos.
+
+_LOGS_/
+  Logger singleton. Gera LOG_GERAL.log a cada sessão.
+  Captura crashes Python (sys.excepthook) e nativos C/Qt (faulthandler).
+
+_APPDATA_/
+  Gerencia a pasta do usuário no sistema (%APPDATA% / ~/).
+  Caminhos canônicos, config.json, sessao.json.
+
+_THREADS_/
+  Base class ThreadSegura e gerenciador central ThreadManager.
+  Todas as threads do projeto herdam ThreadSegura.
+
+_APP_/
+  Janela principal e toda a interface gráfica.
+  Painel_operacoes contém as linhas de origem/destino e o diálogo de conflitos.
+
+_ULTILIDADES_/
+  Ícones, popups e ferramentas reutilizáveis.
+
+_ZIP_/
+  Compactação, extração segura, identificação de conflitos e worker em thread.
+
+nucleo/
+  Apenas documentação .txt. NUNCA coloque .py aqui.
+
+────────────────────────────────────────────────────────────────────────────────
+DECISÕES DE ARQUITETURA
+────────────────────────────────────────────────────────────────────────────────
+
+  A compactação grava o conteúdo da pasta de origem na raiz do ZIP, sem
+  adicionar uma pasta externa com o nome da origem.
+  A extração mantém arquivos não selecionados no destino e permite substituir
+  individualmente os arquivos marcados pelo usuário.
+  Operações de arquivo rodam em ThreadSegura para manter a interface responsiva.
+  A extração valida caminhos do ZIP e grava arquivos temporários antes de trocar
+  arquivos existentes, reduzindo o risco de deixar arquivos parcialmente gravados.
+
+────────────────────────────────────────────────────────────────────────────────
+DEPENDÊNCIAS EXTERNAS
+────────────────────────────────────────────────────────────────────────────────
+
+  PySide6       — framework Qt para Python
+  qtawesome     — ícones FontAwesome/MaterialDesign para Qt (opcional)
+  zipfile       — biblioteca padrão do Python para ler e criar arquivos ZIP
+
+
+════════════════════════════════════════════════════════════════════════════════

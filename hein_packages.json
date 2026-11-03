@@ -1,0 +1,42 @@
+{
+  "pip": {
+    "versao": "26.3",
+    "instalado_em": "2026-11-03T15:55:42"
+  },
+  "packaging": {
+    "versao": "26.3",
+    "instalado_em": "2026-11-03T15:56:09"
+  },
+  "setuptools": {
+    "versao": "84.2.1",
+    "instalado_em": "2026-11-03T15:56:09"
+  },
+  "wheel": {
+    "versao": "0.48.0",
+    "instalado_em": "2026-11-03T15:56:09"
+  },
+  "PySide6": {
+    "versao": "6.12.0",
+    "instalado_em": "2026-11-03T15:57:11"
+  },
+  "PySide6_Addons": {
+    "versao": "6.12.0",
+    "instalado_em": "2026-11-03T15:57:11"
+  },
+  "PySide6_Essentials": {
+    "versao": "6.12.0",
+    "instalado_em": "2026-11-03T15:57:11"
+  },
+  "PySide6_Pdf": {
+    "versao": "6.12.0.140",
+    "instalado_em": "2026-11-03T15:57:11"
+  },
+  "PySide6_WebEngine": {
+    "versao": "6.12.0.140",
+    "instalado_em": "2026-11-03T15:57:11"
+  },
+  "shiboken6": {
+    "versao": "6.12.0",
+    "instalado_em": "2026-11-03T15:57:11"
+  }
+}
