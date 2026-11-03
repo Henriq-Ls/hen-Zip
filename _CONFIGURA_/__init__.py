@@ -44,9 +44,9 @@ TEMA_QT     = "Fusion"             # tema base do Qt
 
 # Caminhos absolutos — independentes do CWD de execução
 _PROJETO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-IMAGEM_ICO   = os.path.join(_PROJETO_DIR, "IMAGENS", "icon.ico")
-LOGO_MARCA   = os.path.join(_PROJETO_DIR, "IMAGENS", "logo_nome.png")
-LOGO_SIMB    = os.path.join(_PROJETO_DIR, "IMAGENS", "logo.png")
+IMAGEM_ICO   = os.path.join(_PROJETO_DIR, "midias", "icone.ico")
+LOGO_MARCA   = os.path.join(_PROJETO_DIR, "midias", "logo_horizontal.png")
+LOGO_SIMB    = os.path.join(_PROJETO_DIR, "midias", "logo.png")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # FONTES
@@ -79,7 +79,8 @@ LARGURA_BOTAO_PROCURAR = 78
 LARGURA_BOTAO_EXECUTAR = 104
 LARGURA_BOTAO_REMOVER = 40
 MARGEM_CARD = 18
-ALTURA_MARCA = 48
+ALTURA_MARCA = 70
+LARGURA_MARCA = 250
 LIMITE_DIALOGO_CONFLITOS = 560
 ALTURA_DIALOGO_CONFLITOS = 460
 NIVEL_COMPRESSAO_ZIP = 6
@@ -331,8 +332,8 @@ QFrame#heroCard {{
     border-radius: 16px;
 }}
 QLabel#brandMark {{
-    background: {COR_BG_APP};
-    color: {COR_ROXO_CLARO};
+    background: {COR_TEXTO};
+    color: {COR_ACENTO};
     border: 1px solid {COR_ACENTO_BORDA};
     border-radius: 12px;
     font-size: {FONTE_TAMANHO_MARCA}px;

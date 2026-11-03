@@ -17,12 +17,14 @@ from _CONFIGURA_ import (
     LARGURA_PADRAO, ALTURA_PADRAO,
     LARGURA_MIN, ALTURA_MIN,
     ALTURA_MARCA,
+    LARGURA_MARCA,
     ATALHO_NOVO,
     ATALHO_SAIR,
     CHAVE_CONFIG_OPERACOES,
     ESPACO_INTERNO,
     ESPACO_LAYOUT,
     IMAGEM_ICO,
+    LOGO_MARCA,
     INTERVALO_SALVAR_OPERACOES_MS,
     MARGEM_CARD,
     MARGEM_LAYOUT,
@@ -69,7 +71,7 @@ from _APPDATA_ import appdata
 from _THREADS_ import thread_manager
 
 from PySide6.QtCore import Qt, QByteArray, QTimer, QUrl
-from PySide6.QtGui import QAction, QDesktopServices
+from PySide6.QtGui import QAction, QDesktopServices, QPixmap
 from PySide6.QtWidgets import (
     QDialog,
     QFrame,
@@ -160,7 +162,19 @@ class MainWindow(QMainWindow):
         marca = QLabel(TXT_HERO_MARCA)
         marca.setObjectName("brandMark")
         marca.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        marca.setFixedSize(ALTURA_MARCA, ALTURA_MARCA)
+        marca.setFixedSize(LARGURA_MARCA, ALTURA_MARCA)
+        if os.path.isfile(LOGO_MARCA):
+            logo = QPixmap(LOGO_MARCA)
+            if not logo.isNull():
+                marca.setPixmap(
+                    logo.scaled(
+                        LARGURA_MARCA - 18,
+                        ALTURA_MARCA - 12,
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation,
+                    )
+                )
+                marca.setAccessibleName(TITULO_APP)
         hero_layout.addWidget(marca)
 
         textos_hero = QVBoxLayout()
