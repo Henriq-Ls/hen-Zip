@@ -3,7 +3,7 @@
 ════════════════════════════════════════════════════════════════════════════════
 
 hen-Zip é uma aplicação desktop feita com PySide6 para compactar pastas em
-arquivos ZIP e extrair arquivos ZIP diretamente para uma pasta escolhida.
+arquivos ZIP e extrair arquivos ZIP ou RAR diretamente para uma pasta escolhida.
 Cada linha da interface representa uma operação, com origem, destino e ação.
 Na extração, o usuário pode escolher individualmente quais arquivos existentes
 serão substituídos. Caminhos inseguros dentro de arquivos ZIP são rejeitados.
@@ -30,13 +30,16 @@ _THREADS_/
 
 _APP_/
   Janela principal e toda a interface gráfica.
-  Painel_operacoes contém as linhas de origem/destino e o diálogo de conflitos.
+  Painel_operacoes contém as linhas de origem/destino, divisórias de grupo,
+  reordenação por arraste/setas e o diálogo de conflitos.
+  O botão e o menu Ajuda abrem o guia completo de uso.
 
 _ULTILIDADES_/
   Ícones, popups e ferramentas reutilizáveis.
 
 _ZIP_/
-  Compactação, extração segura, identificação de conflitos e worker em thread.
+  Compactação ZIP, extração segura de ZIP/RAR, identificação de conflitos e
+  worker em thread.
 
 nucleo/
   Apenas documentação .txt. NUNCA coloque .py aqui.
@@ -47,19 +50,39 @@ DECISÕES DE ARQUITETURA
 
   A compactação grava o conteúdo da pasta de origem na raiz do ZIP, sem
   adicionar uma pasta externa com o nome da origem.
+  O campo opcional de senha cria arquivos ZIP com criptografia AES-256; a senha
+  digitada para extrair não é salva nas configurações.
   A extração mantém arquivos não selecionados no destino e permite substituir
   individualmente os arquivos marcados pelo usuário.
-  Se o ZIP tiver uma única pasta raiz com o mesmo nome do destino, esse nível é
-  removido para evitar uma pasta duplicada.
+  No destino informado, se o ZIP tiver uma única pasta raiz com o mesmo nome
+  do destino, esse nível é removido automaticamente. Quando os nomes forem
+  diferentes, a opção "Remover raiz" controla se o nível é removido ou
+  preservado. A cópia feita "Ao lado do arquivo" sempre mantém a pasta-raiz e
+  mescla os arquivos nela quando a pasta já existe, sem aplicar "Remover raiz".
+  ZIPs com mais de um item na raiz mantêm sua estrutura.
   A opção "Apagar ZIP após extrair" é salva por linha e só remove a origem após
   a conclusão bem-sucedida; o caminho permanece salvo.
+  A conclusão emite um alerta; sua janela de informação fecha ao clicar fora e
+  não bloqueia a interface.
   O botão Abrir logs abre LOG_GERAL.log; o resumo registra arquivos extraídos e
   arquivos mantidos sem substituição.
-  As linhas e os caminhos escolhidos são persistidos em config.json via AppData
-  e restaurados ao iniciar o aplicativo.
+  A ordem das operações e as divisórias de grupo são persistidas em config.json
+  via AppData e restauradas ao iniciar o aplicativo.
   Operações de arquivo rodam em ThreadSegura para manter a interface responsiva.
   A extração valida caminhos do ZIP e grava arquivos temporários antes de trocar
   arquivos existentes, reduzindo o risco de deixar arquivos parcialmente gravados.
+  RAR é extraído via rarfile e requer UnRAR, Unar ou bsdtar. O UnRAR também é
+  procurado na pasta padrão do WinRAR no Windows. Links e itens especiais
+  encontrados em RARs são rejeitados. Cabeçalhos RAR criptografados exigem
+  senha antes que a lista de arquivos possa ser lida e o pacote cryptography
+  para descriptografá-los; senha incorreta, suporte de criptografia indisponível
+  e arquivo RAR inválido devem gerar avisos distintos.
+  Se o destino da extração ficar vazio e "Ao lado do arquivo" estiver marcado,
+  o programa usa a pasta do arquivo compactado como destino único. Com destino
+  preenchido, a opção também extrai uma cópia ao lado do arquivo, preservando
+  e mesclando a pasta-raiz interna. A interface inicia cada operação recolhida,
+  exibe o nome do arquivo sem extensão e expande os campos de caminho e senha
+  em uma única linha para edição.
 
 ────────────────────────────────────────────────────────────────────────────────
 DEPENDÊNCIAS EXTERNAS
@@ -67,7 +90,11 @@ DEPENDÊNCIAS EXTERNAS
 
   PySide6       — framework Qt para Python
   qtawesome     — ícones FontAwesome/MaterialDesign para Qt (opcional)
-  zipfile       — biblioteca padrão do Python para ler e criar arquivos ZIP
+  pyzipper      — leitura de ZIPs protegidos e criação de ZIPs AES-256
+  rarfile       — leitura de arquivos RAR
+  cryptography  — leitura de cabeçalhos RAR protegidos por senha
+  zipfile       — biblioteca padrão do Python para manipular arquivos ZIP
+  UnRAR, Unar ou bsdtar — ferramenta externa necessária para extrair RARs
 
 
 ════════════════════════════════════════════════════════════════════════════════

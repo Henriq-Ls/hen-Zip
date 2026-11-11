@@ -31,7 +31,10 @@ class ThreadOperacaoZip(ThreadSegura):
         apagar_zip_apos_extrair: bool = False,
         extrair_junto_zip: bool = False,
         substituir_junto_zip: set[str] | None = None,
+        remover_pasta_raiz_diferente: bool = False,
+        senha: str = "",
         parent=None,
+        preservar_pasta_raiz_destino: bool = False,
     ):
         super().__init__(nome=nome, parent=parent)
         self._acao = acao
@@ -41,6 +44,9 @@ class ThreadOperacaoZip(ThreadSegura):
         self._apagar_zip_apos_extrair = apagar_zip_apos_extrair
         self._extrair_junto_zip = extrair_junto_zip
         self._substituir_junto_zip = substituir_junto_zip or set()
+        self._remover_pasta_raiz_diferente = remover_pasta_raiz_diferente
+        self._senha = senha
+        self._preservar_pasta_raiz_destino = preservar_pasta_raiz_destino
 
     def run(self):
         try:
@@ -49,6 +55,7 @@ class ThreadOperacaoZip(ThreadSegura):
                     self._origem,
                     self._destino,
                     self._reportar_progresso,
+                    senha=self._senha,
                 )
                 mensagem = TXT_SUCESSO_COMPACTAR.format(destino=destino)
             elif self._acao == "extrair":
@@ -57,6 +64,11 @@ class ThreadOperacaoZip(ThreadSegura):
                     self._destino,
                     self._substituir,
                     self._reportar_progresso,
+                    remover_pasta_raiz_diferente=(
+                        self._remover_pasta_raiz_diferente
+                    ),
+                    senha=self._senha,
+                    preservar_pasta_raiz=self._preservar_pasta_raiz_destino,
                 )
                 mensagem = TXT_SUCESSO_EXTRAIR.format(destino=destino)
                 if self._extrair_junto_zip:
@@ -75,6 +87,11 @@ class ThreadOperacaoZip(ThreadSegura):
                             pasta_zip,
                             self._substituir_junto_zip,
                             self._reportar_progresso,
+                            remover_pasta_raiz_diferente=(
+                                False
+                            ),
+                            senha=self._senha,
+                            preservar_pasta_raiz=True,
                         )
                         mensagem += TXT_SUCESSO_EXTRAIR_JUNTO_ZIP.format(
                             destino=pasta_zip

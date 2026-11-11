@@ -1,4 +1,3 @@
-════════════════════════════════════════════════════════════════════════════════
   ÚLTIMAS CORREÇÕES E ALTERAÇÕES
 ════════════════════════════════════════════════════════════════════════════════
 
@@ -10,6 +9,169 @@ Formato:
 
 ────────────────────────────────────────────────────────────────────────────────
 
-[Preencha conforme for aplicando correções ao projeto]
+[2026-11-11] [HZIP-01] Extração, senhas, ajuda e organização das operações
+  Arquivos alterados:
+    _CONFIGURA_/__init__.py
+    _APP_/main_window.py
+    _APP_/Painel_operacoes/__init__.py
+    _APP_/Painel_operacoes/linha_operacao.py
+    _APP_/Painel_operacoes/dialogo_ajuda.py
+    _APP_/Painel_operacoes/divisoria_operacao.py (novo)
+    _APP_/Painel_operacoes/movimento_operacoes.py (novo)
+    _ZIP_/operacoes.py
+    _ZIP_/thread_zip.py
+    _ULTILIDADES_/popups.py
+    requirements.txt
+    tests/test_operacoes.py
+    tests/test_persistencia_operacoes.py
+    README.md
+    nucleo/_DOC_PROJETO.txt
+    nucleo/_ULTIMOS_FIX.txt
+    Ambiente Replit: .replit, pyproject.toml e uv.lock
+
+  Causa raiz:
+    Na extração, um ZIP com uma única pasta interna de nome diferente do destino
+    preservava essa pasta por padrão. Assim, os arquivos eram colocados um nível
+    abaixo do destino e não substituíam diretamente arquivos já existentes ali.
+    Também faltavam senha na compactação/extração, organização visual das linhas
+    e uma forma de dispensar o aviso de conclusão sem clicar em OK.
+
+  Solução aplicada:
+    - A opção "Remover raiz" controla a pasta interna única quando o nome dela é
+      diferente do destino: marcada, extrai o conteúdo diretamente no destino;
+      desmarcada, mantém a pasta. Se os nomes coincidem, remove esse nível para
+      evitar pasta duplicada. ZIPs com conteúdo em mais de uma raiz preservam a
+      estrutura.
+    - "Ao lado do ZIP" também extrai uma cópia na pasta do arquivo ZIP; conflitos
+      são apresentados separadamente para cada destino. "Apagar ZIP" só remove
+      o arquivo de origem após todas as extrações solicitadas concluírem com
+      sucesso, e não apaga o caminho salvo na linha.
+    - A linha tem um campo de senha mascarado, usado tanto ao compactar quanto
+      ao extrair. ZIPs compactados com senha usam AES-256 via pyzipper. A senha
+      não é gravada nas configurações; ZIP protegido sem senha ou com senha
+      incorreta retorna um erro. Para esses ZIPs, documentar compatibilidade
+      com 7-Zip/WinRAR; o extrator padrão do Windows pode não aceitar AES-256.
+    - A extração valida caminhos para impedir gravação fora do destino, permite
+      escolher individualmente quais arquivos existentes serão substituídos e
+      grava cada arquivo temporariamente antes de trocar o arquivo no destino.
+      A compactação arquiva o conteúdo da pasta de origem sem mover ou apagar
+      os originais.
+    - As opções de marcação da linha receberam estilo visual consistente. A
+      confirmação de conclusão emite um alerta sonoro e pode ser fechada ao
+      clicar fora; erros e confirmações de ações destrutivas continuam com
+      diálogo próprio.
+    - O botão "Ajuda" e a opção "Como usar" do menu abrem um guia grande que
+      explica campos, opções, substituições, senhas e limites de segurança.
+    - Cada operação pode ser reordenada arrastando o puxador "⋮" ou usando as
+      setas ↑/↓. "+ Separador" adiciona uma divisória horizontal removível e
+      reordenável para agrupar operações. Ordem e divisórias são salvas e
+      restauradas junto com as linhas.
+    - A documentação do projeto e o README foram atualizados. O ambiente de
+      testes do Replit foi configurado para PySide6 e suas bibliotecas Qt.
+      Verificação realizada: 26 testes passaram; compilação Python e
+      `git diff --check` sem erros.
 
 ════════════════════════════════════════════════════════════════════════════════
+
+[2026-11-11] [HZIP-02] Destino automático, suporte a RAR e Explorer próprio
+  Arquivos alterados:
+    _CONFIGURA_/__init__.py
+    _APP_/main_window.py
+    _APP_/Painel_operacoes/linha_operacao.py
+    _ZIP_/operacoes.py
+    requirements.txt
+    README.md
+    nucleo/_DOC_PROJETO.txt
+    nucleo/_ULTIMOS_FIX.txt
+    tests/
+
+  Causa raiz:
+    A validação exigia origem e destino preenchidos antes de considerar a opção
+    "Ao lado do ZIP". A interface também abria QFileDialog nativo com filtro
+    exclusivo para ZIP, e o mecanismo de extração ainda não aceitava RAR.
+
+  Solução aplicada:
+    - Com destino vazio e "Ao lado do arquivo" marcado, a pasta do arquivo ZIP
+      ou RAR passa a ser o destino da extração. Com destino preenchido, mantém
+      a extração adicional ao lado do arquivo.
+    - Os botões "Procurar" agora usam o Explorer próprio do projeto. O filtro
+      separa ZIP e RAR; pastas continuam visíveis para navegação.
+    - A extração de RAR valida caminhos, trata senha e conflitos, rejeita links
+      simbólicos e usa rarfile. RAR comprimido requer UnRAR ou Unar no PATH.
+
+════════════════════════════════════════════════════════════════════════════════
+
+[2026-11-11] [HZIP-03] Configuração do Explorer e diagnóstico de senha RAR
+  Arquivos alterados:
+    _CONFIGURA_/__init__.py
+    _ZIP_/operacoes.py
+    tests/test_operacoes.py
+    requirements.txt
+    README.md
+    nucleo/_DOC_PROJETO.txt
+    nucleo/_ULTIMOS_FIX.txt
+
+  Causa raiz:
+    O Explorer importava dimensões, limites e textos que ainda não existiam na
+    configuração central. Além disso, um RAR com cabeçalhos criptografados pode
+    não listar membros sem senha, embora rarfile não marque os membros como
+    protegidos; a falha acabava parecendo um arquivo compactado inválido.
+
+  Solução aplicada:
+    - Foram incluídas as configurações e mensagens usadas pelo Explorer.
+    - O leitor verifica cabeçalhos RAR criptografados, pede a senha quando
+      necessário e diferencia senha incorreta, suporte de criptografia ausente
+      e RAR inválido, em vez de apresentar um erro genérico de ZIP. A dependência
+      cryptography foi incluída para permitir a leitura desses cabeçalhos.
+    - A documentação agora explica os avisos e esclarece que “File is not a zip
+      file”, isoladamente, não confirma que a senha esteja errada.
+    - A conferência foi estática. O aplicativo e os testes não foram executados
+      a pedido do usuário.
+
+════════════════════════════════════════════════════════════════════════════════
+
+[2026-11-11] [HZIP-04] Ícones ausentes impediam a abertura do Explorer
+  Arquivos alterados:
+    _ULTILIDADES_/icones.py
+    nucleo/_ULTIMOS_FIX.txt
+
+  Causa raiz:
+    O Explorer importava sete funções de ícone que não estavam definidas no
+    módulo central de ícones. O primeiro erro visível era ico_avancar; os demais
+    imports também impediriam a inicialização depois que esse fosse corrigido.
+
+  Solução aplicada:
+    - Foram adicionadas as funções de voltar, avançar, subir pasta, início,
+      copiar caminho, nova pasta e renomear.
+    - A verificação foi estática. O aplicativo não foi executado a pedido do
+      usuário.
+
+════════════════════════════════════════════════════════════════════════════════
+
+[2026-11-11] [HZIP-05] Cópia ao lado preserva a pasta-raiz e a linha ficou recolhível
+  Arquivos alterados:
+    _CONFIGURA_/__init__.py
+    _APP_/main_window.py
+    _APP_/Painel_operacoes/linha_operacao.py
+    _ZIP_/operacoes.py
+    _ZIP_/thread_zip.py
+    tests/test_operacoes.py
+    README.md
+    nucleo/_DOC_PROJETO.txt
+    nucleo/_ULTIMOS_FIX.txt
+
+  Causa raiz:
+    A opção "Remover raiz" também era aplicada à cópia ao lado do ZIP/RAR.
+    Além disso, a linha mantinha os campos de caminho e senha em duas alturas,
+    ocupando espaço mesmo quando não estavam sendo editados.
+
+  Solução aplicada:
+    - "Remover raiz" agora afeta somente o destino informado. A extração ao lado
+      sempre preserva a pasta-raiz interna e mescla os arquivos nela quando já
+      existe uma pasta com esse nome.
+    - Os campos de origem, destino e senha ficam recolhidos por padrão. A linha
+      mostra o nome do arquivo sem extensão e um botão junto às setas de ordem
+      expande os campos em uma única linha.
+    - A documentação e a ajuda do aplicativo explicam o escopo das opções.
+    - Foi acrescentado um teste de regressão para manter e mesclar a pasta-raiz.
+      O aplicativo e os testes não foram executados, conforme solicitado.

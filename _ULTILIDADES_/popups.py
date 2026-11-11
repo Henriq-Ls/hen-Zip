@@ -15,12 +15,30 @@ Uso:
         fazer_exclusao()
 """
 
-from PySide6.QtWidgets import QMessageBox, QWidget
+from PySide6.QtCore import QEvent, QObject, Qt
+from PySide6.QtWidgets import QApplication, QMessageBox, QWidget
 from _CONFIGURA_ import ESTILO_DIALOGO_ESCURO, TITULO_APP
+
+_DIALOGOS_INFO_ATIVOS = set()
 
 
 def _aplicar_estilo(dialogo: QMessageBox):
     dialogo.setStyleSheet(ESTILO_DIALOGO_ESCURO)
+
+
+class _FecharAoClicarFora(QObject):
+    def __init__(self, dialogo: QMessageBox):
+        super().__init__(dialogo)
+        self._dialogo = dialogo
+
+    def eventFilter(self, objeto, evento):
+        if evento.type() == QEvent.Type.MouseButtonPress:
+            posicao = evento.globalPosition().toPoint()
+            if not self._dialogo.geometry().contains(posicao):
+                self._dialogo.close()
+        elif evento.type() == QEvent.Type.ApplicationDeactivate:
+            self._dialogo.close()
+        return False
 
 
 def popup_erro(titulo: str, mensagem: str, parent: QWidget = None):
@@ -45,14 +63,39 @@ def popup_aviso(titulo: str, mensagem: str, parent: QWidget = None):
     dlg.exec()
 
 
-def popup_info(titulo: str, mensagem: str, parent: QWidget = None):
-    """Exibe diálogo informativo modal."""
+def popup_info(
+    titulo: str,
+    mensagem: str,
+    parent: QWidget = None,
+    fechar_ao_clicar_fora: bool = False,
+):
+    """Exibe informação; opcionalmente fecha ao clicar fora sem bloquear a janela."""
     dlg = QMessageBox(parent)
     dlg.setWindowTitle(titulo)
     dlg.setText(mensagem)
     dlg.setIcon(QMessageBox.Icon.Information)
     dlg.setStandardButtons(QMessageBox.StandardButton.Ok)
     _aplicar_estilo(dlg)
+    if fechar_ao_clicar_fora:
+        aplicativo = QApplication.instance()
+        if aplicativo is None:
+            dlg.exec()
+            return
+
+        dlg.setModal(False)
+        dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        filtro = _FecharAoClicarFora(dlg)
+        aplicativo.installEventFilter(filtro)
+        _DIALOGOS_INFO_ATIVOS.add(dlg)
+
+        def ao_finalizar(_resultado):
+            aplicativo.removeEventFilter(filtro)
+            _DIALOGOS_INFO_ATIVOS.discard(dlg)
+
+        dlg.finished.connect(ao_finalizar)
+        dlg.show()
+        return dlg
+
     dlg.exec()
 
 

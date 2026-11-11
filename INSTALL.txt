@@ -10,5 +10,7 @@ python.exe -m pip install --upgrade pip
 python -m pip install --upgrade setuptools wheel   
 pip install PySide6 
 pip install qtawesome
-
+pip install pyzipper
+pip install rarfile
+pip install cryptography
 

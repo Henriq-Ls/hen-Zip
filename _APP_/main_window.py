@@ -21,6 +21,7 @@ from _CONFIGURA_ import (
     ATALHO_NOVO,
     ATALHO_SAIR,
     CHAVE_CONFIG_OPERACOES,
+    CHAVE_ITEM_TIPO,
     ESPACO_INTERNO,
     ESPACO_LAYOUT,
     IMAGEM_ICO,
@@ -30,6 +31,8 @@ from _CONFIGURA_ import (
     MARGEM_LAYOUT,
     ESTILO_ESCURO_GLOBAL,
     TXT_BOTAO_NOVA_OPERACAO,
+    TXT_BOTAO_NOVO_SEPARADOR,
+    TXT_BOTAO_AJUDA,
     TXT_BOTAO_ABRIR_LOGS,
     TXT_AVISO_ZIP_NAO_APAGADO,
     TXT_CONFIRMAR_SAIR_PROCESSANDO,
@@ -50,6 +53,7 @@ from _CONFIGURA_ import (
     TXT_HERO_TITULO,
     TXT_MENU_ARQUIVO,
     TXT_MENU_AJUDA,
+    TXT_MENU_AJUDA_GUIA,
     TXT_MENU_NOVA_OPERACAO,
     TXT_MENU_SAIR,
     TXT_MENU_SOBRE,
@@ -65,6 +69,7 @@ from _CONFIGURA_ import (
     TXT_TITULO_SUBSTITUIR_ZIP,
     TXT_TITULO_SUCESSO,
     TXT_SOBRE,
+    VALOR_ITEM_DIVISORIA,
 )
 from _LOGS_ import log
 from _APPDATA_ import appdata
@@ -73,6 +78,7 @@ from _THREADS_ import thread_manager
 from PySide6.QtCore import Qt, QByteArray, QTimer, QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QPixmap
 from PySide6.QtWidgets import (
+    QApplication,
     QDialog,
     QFrame,
     QHBoxLayout,
@@ -85,7 +91,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from _APP_.Painel_operacoes import LinhaOperacao
+from _APP_.Painel_operacoes import DivisoriaOperacao, LinhaOperacao
+from _APP_.Painel_operacoes.movimento_operacoes import AreaOperacoes
+from _APP_.Painel_operacoes.dialogo_ajuda import DialogoAjuda
 from _APP_.Painel_operacoes.dialogo_conflitos import DialogoConflitos
 from _ULTILIDADES_.popups import (
     popup_aviso,
@@ -106,6 +114,7 @@ class MainWindow(QMainWindow):
         super().__init__(parent)
         log.info("MainWindow", "__init__", "inicializando janela principal...")
         self._linhas: list[LinhaOperacao] = []
+        self._itens: list[LinhaOperacao | DivisoriaOperacao] = []
         self._threads: dict[str, ThreadOperacaoZip] = {}
         self._processando = False
         self._restaurando_operacoes = True
@@ -186,6 +195,11 @@ class MainWindow(QMainWindow):
         textos_hero.addWidget(subtitulo)
         hero_layout.addLayout(textos_hero, 1)
 
+        self._botao_ajuda = QPushButton(TXT_BOTAO_AJUDA)
+        self._botao_ajuda.setObjectName("secondaryButton")
+        self._botao_ajuda.clicked.connect(self._abrir_ajuda)
+        hero_layout.addWidget(self._botao_ajuda)
+
         self._botao_logs = QPushButton(TXT_BOTAO_ABRIR_LOGS)
         self._botao_logs.setObjectName("secondaryButton")
         self._botao_logs.clicked.connect(self._abrir_logs)
@@ -214,9 +228,16 @@ class MainWindow(QMainWindow):
         self._botao_nova.setObjectName("secondaryButton")
         self._botao_nova.clicked.connect(self._ao_acao_nova)
         cabecalho_painel.addWidget(self._botao_nova)
+
+        self._botao_nova_divisoria = QPushButton(TXT_BOTAO_NOVO_SEPARADOR)
+        self._botao_nova_divisoria.setObjectName("secondaryButton")
+        self._botao_nova_divisoria.clicked.connect(self._adicionar_divisoria)
+        cabecalho_painel.addWidget(self._botao_nova_divisoria)
+
         painel_layout.addLayout(cabecalho_painel)
 
-        self._area_linhas = QWidget()
+        self._area_linhas = AreaOperacoes()
+        self._area_linhas.item_solto.connect(self._ao_soltar_item)
         self._layout_linhas = QVBoxLayout(self._area_linhas)
         self._layout_linhas.setContentsMargins(0, 0, 0, 0)
         self._layout_linhas.setSpacing(ESPACO_INTERNO)
@@ -253,6 +274,10 @@ class MainWindow(QMainWindow):
         menu_arquivo.addAction(acao_sair)
 
         menu_ajuda = self.menuBar().addMenu(TXT_MENU_AJUDA)
+        acao_guia = QAction(TXT_MENU_AJUDA_GUIA, self)
+        acao_guia.triggered.connect(self._abrir_ajuda)
+        menu_ajuda.addAction(acao_guia)
+        menu_ajuda.addSeparator()
         acao_sobre = QAction(TXT_MENU_SOBRE, self)
         acao_sobre.triggered.connect(self._ao_acao_sobre)
         menu_ajuda.addAction(acao_sobre)
@@ -262,6 +287,9 @@ class MainWindow(QMainWindow):
 
     def _ao_acao_sair(self, marcado: bool = False):
         self.close()
+
+    def _abrir_ajuda(self, marcado: bool = False):
+        DialogoAjuda(self).exec()
 
     def _ao_acao_sobre(self, marcado: bool = False):
         popup_info(
@@ -285,39 +313,109 @@ class MainWindow(QMainWindow):
         self._inserir_linha()
         self._agendar_salvamento_operacoes()
 
+    def _adicionar_divisoria(self):
+        if self._processando:
+            return
+        self._inserir_divisoria()
+        self._agendar_salvamento_operacoes()
+
     def _inserir_linha(self, dados: dict | None = None):
         linha = LinhaOperacao(self._area_linhas)
         if dados is not None:
             linha.restaurar_dados(dados)
         linha.solicitar_operacao.connect(self._executar_operacao)
-        linha.solicitar_remocao.connect(self._remover_linha)
+        linha.solicitar_remocao.connect(self._remover_item)
+        linha.solicitar_mover.connect(self._mover_item)
         linha.operacao_alterada.connect(self._agendar_salvamento_operacoes)
         self._linhas.append(linha)
+        self._itens.append(linha)
         indice = max(self._layout_linhas.count() - 1, 0)
         self._layout_linhas.insertWidget(indice, linha)
         linha.definir_ocupado(self._processando)
         self._botao_nova.setEnabled(not self._processando)
+        self._botao_nova_divisoria.setEnabled(not self._processando)
+        self._atualizar_controles_ordenacao()
+
+    def _inserir_divisoria(self):
+        divisoria = DivisoriaOperacao(self._area_linhas)
+        divisoria.solicitar_remocao.connect(self._remover_item)
+        divisoria.solicitar_mover.connect(self._mover_item)
+        self._itens.append(divisoria)
+        indice = max(self._layout_linhas.count() - 1, 0)
+        self._layout_linhas.insertWidget(indice, divisoria)
+        divisoria.definir_ocupado(self._processando)
+        self._botao_nova_divisoria.setEnabled(not self._processando)
+        self._atualizar_controles_ordenacao()
 
     def _remover_linha(self, linha: LinhaOperacao):
-        if linha not in self._linhas:
+        self._remover_item(linha)
+
+    def _remover_item(self, item: QWidget):
+        if item not in self._itens:
             return
-        self._linhas.remove(linha)
-        self._layout_linhas.removeWidget(linha)
+        self._itens.remove(item)
+        if isinstance(item, LinhaOperacao):
+            self._linhas.remove(item)
+            try:
+                item.solicitar_operacao.disconnect(self._executar_operacao)
+            except (RuntimeError, TypeError):
+                pass
+            try:
+                item.operacao_alterada.disconnect(self._agendar_salvamento_operacoes)
+            except (RuntimeError, TypeError):
+                pass
         try:
-            linha.solicitar_operacao.disconnect(self._executar_operacao)
+            item.solicitar_remocao.disconnect(self._remover_item)
+            item.solicitar_mover.disconnect(self._mover_item)
         except (RuntimeError, TypeError):
             pass
-        try:
-            linha.solicitar_remocao.disconnect(self._remover_linha)
-        except (RuntimeError, TypeError):
-            pass
-        try:
-            linha.operacao_alterada.disconnect(self._agendar_salvamento_operacoes)
-        except (RuntimeError, TypeError):
-            pass
-        linha.setParent(None)
-        linha.deleteLater()
+        self._layout_linhas.removeWidget(item)
+        item.setParent(None)
+        item.deleteLater()
+        self._atualizar_controles_ordenacao()
         self._agendar_salvamento_operacoes()
+
+    def _mover_item(self, item: QWidget, direcao: int):
+        if self._processando or item not in self._itens or direcao not in (-1, 1):
+            return
+        indice = self._itens.index(item)
+        novo_indice = indice + direcao
+        if not 0 <= novo_indice < len(self._itens):
+            return
+        self._reposicionar_item(item, novo_indice)
+
+    def _ao_soltar_item(self, identificador: str, indice: int):
+        if self._processando:
+            return
+        item = next(
+            (atual for atual in self._itens if str(id(atual)) == identificador),
+            None,
+        )
+        if item is not None:
+            self._reposicionar_item(item, indice)
+
+    def _reposicionar_item(self, item: QWidget, novo_indice: int):
+        if self._processando or item not in self._itens:
+            return
+        indice = self._itens.index(item)
+        novo_indice = max(0, min(novo_indice, len(self._itens) - 1))
+        if indice == novo_indice:
+            return
+        self._itens.pop(indice)
+        self._itens.insert(novo_indice, item)
+        self._layout_linhas.removeWidget(item)
+        self._layout_linhas.insertWidget(novo_indice, item)
+        self._linhas = [
+            atual for atual in self._itens if isinstance(atual, LinhaOperacao)
+        ]
+        self._atualizar_controles_ordenacao()
+        self._agendar_salvamento_operacoes()
+
+    def _atualizar_controles_ordenacao(self):
+        self._area_linhas.definir_itens(self._itens)
+        total = len(self._itens)
+        for indice, item in enumerate(self._itens):
+            item.definir_movimentos(indice > 0, indice < total - 1)
 
     def _restaurar_operacoes(self):
         """Carrega as linhas salvas no arquivo de configuração do usuário."""
@@ -327,7 +425,10 @@ class MainWindow(QMainWindow):
             if isinstance(salvas, list):
                 for dados in salvas:
                     if isinstance(dados, dict):
-                        self._inserir_linha(dados)
+                        if dados.get(CHAVE_ITEM_TIPO) == VALOR_ITEM_DIVISORIA:
+                            self._inserir_divisoria()
+                        else:
+                            self._inserir_linha(dados)
                 if not salvas:
                     log.info(
                         "MainWindow",
@@ -357,13 +458,13 @@ class MainWindow(QMainWindow):
         try:
             configuracao = appdata.ler_config()
             configuracao[CHAVE_CONFIG_OPERACOES] = [
-                linha.exportar_dados() for linha in self._linhas
+                item.exportar_dados() for item in self._itens
             ]
             appdata.salvar_config(configuracao)
             log.ok(
                 "MainWindow",
                 "_salvar_operacoes",
-                f"{len(self._linhas)} linha(s) salvas",
+                f"{len(self._itens)} item(ns) salvo(s)",
             )
         except Exception as erro:
             log.erro("MainWindow", "_salvar_operacoes", str(erro))
@@ -375,18 +476,24 @@ class MainWindow(QMainWindow):
         destino: str,
         apagar_zip_apos_extrair: bool = False,
         extrair_junto_zip: bool = False,
+        remover_pasta_raiz_diferente: bool = False,
+        senha: str = "",
     ):
         if self._processando:
             return
         origem = os.path.expandvars(os.path.expanduser(origem))
         destino = os.path.expandvars(os.path.expanduser(destino))
-        if not origem or not destino:
+        if not origem or (
+            not destino
+            and not (acao == "extrair" and extrair_junto_zip)
+        ):
             popup_aviso(TITULO_APP, TXT_ERRO_CAMINHO_VAZIO, self)
             return
 
         substituir: set[str] = set()
         substituir_junto_zip: set[str] = set()
         extrair_na_pasta_do_zip = False
+        preservar_pasta_raiz_destino = False
         try:
             if acao == "compactar":
                 if not os.path.isdir(origem):
@@ -408,23 +515,48 @@ class MainWindow(QMainWindow):
             elif acao == "extrair":
                 if not os.path.isfile(origem):
                     raise ValueError(TXT_ERRO_ORIGEM_ZIP_INVALIDA)
+                if not destino and extrair_junto_zip:
+                    destino = os.path.dirname(os.path.abspath(origem))
                 if os.path.exists(destino) and not os.path.isdir(destino):
                     raise ValueError(TXT_ERRO_DESTINO_PASTA_INVALIDO)
-                destinos_extracao = [destino]
+
+                pasta_zip = os.path.dirname(os.path.abspath(origem))
+                identidade_pasta_zip = os.path.normcase(
+                    os.path.realpath(pasta_zip)
+                )
+                identidade_destino = os.path.normcase(
+                    os.path.realpath(os.path.abspath(destino))
+                )
+                destino_e_pasta_zip = (
+                    extrair_junto_zip
+                    and identidade_destino == identidade_pasta_zip
+                )
+                preservar_pasta_raiz_destino = destino_e_pasta_zip
+                destinos_extracao = [
+                    (
+                        destino,
+                        remover_pasta_raiz_diferente
+                        and not destino_e_pasta_zip,
+                        destino_e_pasta_zip,
+                    )
+                ]
                 if extrair_junto_zip:
-                    pasta_zip = os.path.dirname(os.path.abspath(origem))
-                    identidade_destino = os.path.normcase(
-                        os.path.realpath(os.path.abspath(destino))
-                    )
-                    identidade_pasta_zip = os.path.normcase(
-                        os.path.realpath(pasta_zip)
-                    )
-                    if identidade_destino != identidade_pasta_zip:
-                        destinos_extracao.append(pasta_zip)
+                    if not destino_e_pasta_zip:
+                        destinos_extracao.append((pasta_zip, False, True))
                         extrair_na_pasta_do_zip = True
 
-                for indice, destino_extracao in enumerate(destinos_extracao):
-                    conflitos = listar_conflitos(origem, destino_extracao)
+                for indice, (
+                    destino_extracao,
+                    remover_raiz_destino,
+                    preservar_raiz_destino,
+                ) in enumerate(destinos_extracao):
+                    conflitos = listar_conflitos(
+                        origem,
+                        destino_extracao,
+                        remover_raiz_destino,
+                        senha=senha,
+                        preservar_pasta_raiz=preservar_raiz_destino,
+                    )
                     if not conflitos:
                         continue
                     dialogo = DialogoConflitos(
@@ -460,7 +592,16 @@ class MainWindow(QMainWindow):
                 acao == "extrair" and extrair_na_pasta_do_zip
             ),
             substituir_junto_zip=substituir_junto_zip,
+            remover_pasta_raiz_diferente=(
+                acao == "extrair"
+                and remover_pasta_raiz_diferente
+                and not preservar_pasta_raiz_destino
+            ),
+            senha=senha,
             parent=self,
+            preservar_pasta_raiz_destino=(
+                acao == "extrair" and preservar_pasta_raiz_destino
+            ),
         )
         worker.progresso.connect(self._ao_progresso)
         worker.concluido.connect(self._ao_operacao_concluida)
@@ -473,9 +614,10 @@ class MainWindow(QMainWindow):
 
     def _definir_processando(self, processando: bool):
         self._processando = processando
-        for linha in self._linhas:
-            linha.definir_ocupado(processando)
+        for item in self._itens:
+            item.definir_ocupado(processando)
         self._botao_nova.setEnabled(not processando)
+        self._botao_nova_divisoria.setEnabled(not processando)
         self._progresso.setVisible(processando)
         if not processando:
             self._progresso.setValue(0)
@@ -493,6 +635,7 @@ class MainWindow(QMainWindow):
     ):
         self._definir_processando(False)
         self.statusBar().showMessage(TXT_STATUS_SUCESSO)
+        QApplication.beep()
         if apagar_zip_apos_extrair:
             try:
                 os.remove(origem)
@@ -514,7 +657,12 @@ class MainWindow(QMainWindow):
                 )
                 popup_aviso(TXT_TITULO_SUCESSO, mensagem, self)
                 return
-        popup_info(TXT_TITULO_SUCESSO, mensagem, self)
+        popup_info(
+            TXT_TITULO_SUCESSO,
+            mensagem,
+            self,
+            fechar_ao_clicar_fora=True,
+        )
 
     def _ao_operacao_falhou(self, nome: str, mensagem: str):
         self._definir_processando(False)
